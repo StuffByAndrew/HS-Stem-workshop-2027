@@ -243,3 +243,7 @@ class DeepFloydIF:
         ).images
 
         return image * 2 - 1
+
+
+# model = DeepFloydIF()
+# image_64 = model.sample_stage1(prompt_embeds, negative_prompt_embeds, views)
