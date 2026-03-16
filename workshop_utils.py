@@ -129,3 +129,117 @@ class DeepFloydTextEmbedder:
 #     "painting of a horse",
 # ])
 # embedder.close()
+
+import torch
+from diffusers import DiffusionPipeline
+
+
+class DeepFloydIF:
+    def __init__(self, device="cuda"):
+        self.device = device
+        self.dtype = torch.float16
+
+        self.stage_1 = self._load_stage1()
+        self.stage_2 = self._load_stage2()
+        self.stage_3 = self._load_stage3()
+
+    def _load_stage1(self):
+        pipe = DiffusionPipeline.from_pretrained(
+            "DeepFloyd/IF-I-L-v1.0",
+            text_encoder=None,
+            variant="fp16",
+            torch_dtype=self.dtype,
+            safety_checker=None,
+        )
+        pipe.enable_model_cpu_offload()
+        pipe.to(self.device)
+        return pipe
+
+    def _load_stage2(self):
+        pipe = DiffusionPipeline.from_pretrained(
+            "DeepFloyd/IF-II-L-v1.0",
+            text_encoder=None,
+            variant="fp16",
+            torch_dtype=self.dtype,
+            safety_checker=None,
+        )
+        pipe.enable_model_cpu_offload()
+        pipe.to(self.device)
+        return pipe
+
+    def _load_stage3(self):
+        pipe = DiffusionPipeline.from_pretrained(
+            "stabilityai/stable-diffusion-x4-upscaler",
+            torch_dtype=self.dtype,
+            safety_checker=None,
+        )
+        pipe.enable_model_cpu_offload()
+        pipe.to(self.device)
+        return pipe
+
+    # ---------------------------
+    # User-facing API
+    # ---------------------------
+
+    def sample_stage1(
+        self,
+        prompt_embeds,
+        negative_prompt_embeds,
+        views,
+        num_inference_steps=30,
+        guidance_scale=10.0,
+        reduction="mean",
+        generator=None,
+    ):
+        return sample_stage_1(
+            self.stage_1,
+            prompt_embeds,
+            negative_prompt_embeds,
+            views,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            reduction=reduction,
+            generator=generator,
+        )
+
+    def sample_stage2(
+        self,
+        image_64,
+        prompt_embeds,
+        negative_prompt_embeds,
+        views,
+        num_inference_steps=30,
+        guidance_scale=10.0,
+        reduction="mean",
+        noise_level=50,
+        generator=None,
+    ):
+        return sample_stage_2(
+            self.stage_2,
+            image_64,
+            prompt_embeds,
+            negative_prompt_embeds,
+            views,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            reduction=reduction,
+            noise_level=noise_level,
+            generator=generator,
+        )
+
+    def sample_stage3(
+        self,
+        image_256,
+        prompt,
+        noise_level=0,
+        generator=None,
+    ):
+        image = self.stage_3(
+            prompt=prompt,
+            image=image_256,
+            noise_level=noise_level,
+            output_type="pt",
+            generator=generator,
+        ).images
+
+        return image * 2 - 1
